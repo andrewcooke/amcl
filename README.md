@@ -1,7 +1,7 @@
 This is a little program that displays the current track from Amarok and
 lets you move to prev/next tracks, or change volume, using the arrow keys.
 
-It looks soemthing like this:
+It looks something like this:
 
     [9] No se empezar
     El Amarillito Vol 14
@@ -14,6 +14,7 @@ small it will compress and scroll the contents to help you see everything.
 
 It can be used over ssh to control your music remotely, but you must set
 the DISPLAY variable appropriately.  For example:
+
     > ssh desktop
     password: *****
     > DISPLAY=:0.0 ./amcl.py
