@@ -26,6 +26,15 @@ Full control list:
   q: quit
   </>: skip backwards/forwards
   space: pause
+  p/P: set/clear A/B listening point
+  A/B/C/D: store volume for A/B listening point
+  a/b/c/d: set volume and return to listening point
+
+To do A/B listening, set the volume for each device using A,B,.. and the
+start of the music to compare with p.  Then press a,b,... to return to that
+point with the volume for the appropriate device.  This lets you listen to
+the same fragment of music, at the same output volume, when comparing
+different devices.  Pressing P sets the comparison point to the track start.
   
 Please send any bug reports to andrew@acooke.org
 (c) Andrew Cooke 2012, released under the GPL v3.
@@ -58,6 +67,14 @@ class Amarok:
                 metadata.get('artist', 'Unknown'))
 
     @property
+    def position(self):
+        return self.__amarok.PositionGet()
+
+    @position.setter
+    def position(self, position):
+        self.__amarok.PositionSet(position)
+
+    @property
     def progress(self):
         return self.__amarok.PositionGet() / self.metadata.get('mtime', 1e10)
 
@@ -65,11 +82,15 @@ class Amarok:
     def volume(self):
         return self.__amarok.VolumeGet()
 
+    @volume.setter
+    def volume(self, volume):
+        self.__amarok.VolumeSet(volume)
+
     def volume_down(self):
-        self.__amarok.VolumeSet(max(0, self.__amarok.VolumeGet() - 2))
+        self.volume = max(0, self.volume - 1)
 
     def volume_up(self):
-        self.__amarok.VolumeSet(min(100, self.__amarok.VolumeGet() + 2))
+        self.volume = min(100, self.volume + 1)
 
     def prev_track(self):
         self.__amarok.Prev()
@@ -78,13 +99,13 @@ class Amarok:
         self.__amarok.Next()
 
     def pause(self):
-        self.__amarok.Pause()
+        self.__amarok.PlayPause()
 
     def forward(self):
-        self.__amarok.Forward(1000)
+        self.position += 1000
 
     def backward(self):
-        self.__amarok.Backward(1000)
+        self.position -= 1000
 
     @property
     def current(self):
@@ -144,6 +165,8 @@ class BarLine:
         self.__window.addstr(self.__y, 0, text)
 
 
+PRESETS = 'abcd'
+
 class Screen:
 
     def __init__(self, amarok):
@@ -194,6 +217,8 @@ class Screen:
 
     def run(self):
         self.layout()
+        preset_volume = {preset: self.__amarok.volume for preset in PRESETS}
+        preset_position = 1
         idle = 0
         while True:
             key = self.__window.getch()
@@ -203,8 +228,10 @@ class Screen:
                 self.__amarok.pause()
             if key == ord('>'):
                 self.__amarok.forward()
+                self.layout()
             if key == ord('<'):
                 self.__amarok.backward()
+                self.layout()
 #            if key == ord('m'):
 #                metadata = self.__amarok.metadata
 #                for key in metadata: print(key, metadata[key])
@@ -224,6 +251,16 @@ class Screen:
                 self.layout()
             elif key == c.KEY_REFRESH:
                 self.layout()
+            elif key == ord('p'):
+                preset_position = self.__amarok.position
+            elif key == ord('P'):
+                preset_position = 1
+            elif key in (ord(preset.lower()) for preset in PRESETS):
+                self.__amarok.volume = preset_volume[chr(key)]
+                self.__amarok.position = preset_position
+                self.layout()
+            elif key in (ord(preset.upper()) for preset in PRESETS):
+                preset_volume[chr(key).lower()] = self.__amarok.volume
             elif key == -1:
                 sleep(0.01)
                 idle += 1
