@@ -2,7 +2,8 @@
 
 '''
 This is a little program that displays the current track from Amarok and
-lets you move to prev/next tracks, or change volume, using the arrow keys.
+lets you move to prev/next tracks, or change volume, using the cursor 
+(arrow) keys.
 
 It only requries a few lines for the display, so you can place it in a
 little terminal window somewhere out of the way.  If the window is very
@@ -18,6 +19,13 @@ On OpenSuse you need to have the following packages installed:
   python3
   python3-curses
   dbus-1-python3
+
+Full control list:
+  left/right keys: lower/raise volume
+  up/down keys: prev/next track
+  q: quit
+  </>: skip backwards/forwards
+  space: pause
   
 Please send any bug reports to andrew@acooke.org
 (c) Andrew Cooke 2012, released under the GPL v3.
@@ -34,15 +42,24 @@ class Amarok:
     def __init__(self):
         sbus = d.SessionBus()
         self.__amarok = sbus.get_object('org.kde.amarok', '/Player')
+        self.__length = None
         self.__current = self.current
 
     @property
+    def metadata(self):
+        return self.__amarok.GetMetadata()
+
+    @property
     def track_data(self):
-        metadata = self.__amarok.GetMetadata()
+        metadata = self.metadata
         return (str(metadata.get('tracknumber', '-')),
                 metadata.get('title', 'S/T'),
                 metadata.get('album', 'Single'),
                 metadata.get('artist', 'Unknown'))
+
+    @property
+    def progress(self):
+        return self.__amarok.PositionGet() / self.metadata.get('mtime', 1e10)
 
     @property
     def volume(self):
@@ -62,6 +79,12 @@ class Amarok:
 
     def pause(self):
         self.__amarok.Pause()
+
+    def forward(self):
+        self.__amarok.Forward(1000)
+
+    def backward(self):
+        self.__amarok.Backward(1000)
 
     @property
     def current(self):
@@ -85,34 +108,39 @@ class TextLine:
         self.__max_x = max_x
         self.__text = text
         self.__marquee = 0
-        self.refresh()
+        self.refresh(True)
 
-    def refresh(self):
+    def refresh(self, full=True):
         if self.__text:
             m = self.__max_x - 1
             text = self.__text
-            if len(text) > m:
-                t2 = text + '  ' + text
-                if self.__marquee == len(text) + 2: self.__marquee = 0
-                text = t2[self.__marquee:self.__marquee + m]
-                self.__marquee += 1
-            text += ' ' * (m - len(text))
-            self.__window.addstr(self.__y, 0, text)
+            scroll = len(text) > m
+            if scroll or full:
+                if scroll:
+                    t2 = text + '  ' + text
+                    if self.__marquee == len(text) + 2: self.__marquee = 0
+                    text = t2[self.__marquee:self.__marquee + m]
+                    self.__marquee += 1
+                text += ' ' * (m - len(text))
+                self.__window.addstr(self.__y, 0, text)
 
 
 class BarLine:
 
-    def __init__(self, window, y, max_x, percent):
+    def __init__(self, window, y, max_x, volume, progress):
         self.__window = window
         self.__y = y
         self.__max_x = max_x
-        self.__percent = percent
-        self.refresh()
+        self.__volume = volume
+        self.progress = progress
+        self.refresh(True)
 
-    def refresh(self):
+    def refresh(self, full=True):
         m = self.__max_x - 1
-        l = min(int(self.__percent * m / 100.0), m)
-        text = '=' * l + ' ' * (m - l)
+        volume = min(int(self.__volume * m / 100.0), m)
+        text = '=' * volume + ' ' * (m - volume)
+        progress = min(int(self.progress * (m-1)), m-1)
+        text = text[:progress] + '|' + text[progress+1:]
         self.__window.addstr(self.__y, 0, text)
 
 
@@ -140,18 +168,17 @@ class Screen:
         if x < 10: raise Exception('window not wide enough')
         number, track, album, artist = self.__amarok.track_data
         track = '[' + number + '] ' + track
-        if y == 2:
-            track = track + ' from ' + album + ' by ' + artist
+        if y < 4:
+            track = track + ' by ' + artist
+            artist = None
+        if y < 3:
+            track = track + ' from ' + album
             album = None
-            artist = None
-        elif y == 3:
-            album = album + ' by ' + artist
-            artist = None
         self.__track = TextLine(self.__window, 0, x, track)
         self.__album = TextLine(self.__window, 1, x, album)
         self.__artist = TextLine(self.__window, 2, x, artist)
         self.__volume = BarLine(self.__window, min(y-1, 3), x, 
-                                self.__amarok.volume)
+                                self.__amarok.volume, self.__amarok.progress)
         self.__window.refresh()
 
     def refresh(self):
@@ -161,6 +188,7 @@ class Screen:
             self.__track.refresh()
             self.__album.refresh()
             self.__artist.refresh()
+            self.__volume.progress = self.__amarok.progress
             self.__volume.refresh()
             self.__window.refresh()
 
@@ -173,6 +201,13 @@ class Screen:
                 return
             if key == ord(' '):
                 self.__amarok.pause()
+            if key == ord('>'):
+                self.__amarok.forward()
+            if key == ord('<'):
+                self.__amarok.backward()
+#            if key == ord('m'):
+#                metadata = self.__amarok.metadata
+#                for key in metadata: print(key, metadata[key])
             elif key == c.KEY_LEFT:
                 self.__amarok.volume_down()
                 self.layout()
