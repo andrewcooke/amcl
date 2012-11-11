@@ -185,9 +185,9 @@ class Screen:
         if self.__amarok.changed:
             self.layout()
         else:
-            self.__track.refresh()
-            self.__album.refresh()
-            self.__artist.refresh()
+            self.__track.refresh(False)
+            self.__album.refresh(False)
+            self.__artist.refresh(False)
             self.__volume.progress = self.__amarok.progress
             self.__volume.refresh()
             self.__window.refresh()
