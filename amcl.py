@@ -60,6 +60,9 @@ class Amarok:
     def next_track(self):
         self.__amarok.Next()
 
+    def pause(self):
+        self.__amarok.Pause()
+
     @property
     def current(self):
         return hash(self.track_data)
@@ -168,6 +171,8 @@ class Screen:
             key = self.__window.getch()
             if key == ord('q'):
                 return
+            if key == ord(' '):
+                self.__amarok.pause()
             elif key == c.KEY_LEFT:
                 self.__amarok.volume_down()
                 self.layout()
