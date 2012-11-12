@@ -5,7 +5,7 @@ This is a little program that displays the current track from Amarok and
 lets you move to prev/next tracks, or change volume, using the cursor 
 (arrow) keys.
 
-It only requries a few lines for the display, so you can place it in a
+It only requires a few lines for the display, so you can place it in a
 little terminal window somewhere out of the way.  If the window is very
 small it will compress and scroll the contents to help you see everything.
 
@@ -121,51 +121,57 @@ class Amarok:
             return False
 
 
+def pad_to(text, length):
+    return text + ' ' * (length - len(text))
+
+def set_char_at(text, position, char):
+    return text[:position] + char + text[position+1:]    
+
+
 class TextLine:
 
-    def __init__(self, window, y, max_x, text):
+    def __init__(self, window, y, length, text):
         self.__window = window
         self.__y = y
-        self.__max_x = max_x
+        self.__length = length
         self.__text = text
         self.__marquee = 0
         self.refresh(True)
 
     def refresh(self, full=True):
         if self.__text:
-            m = self.__max_x - 1
+            length = self.__length
             text = self.__text
-            scroll = len(text) > m
+            scroll = len(text) > length
             if scroll or full:
                 if scroll:
                     t2 = text + '  ' + text
                     if self.__marquee == len(text) + 2: self.__marquee = 0
-                    text = t2[self.__marquee:self.__marquee + m]
+                    text = t2[self.__marquee:self.__marquee + length]
                     self.__marquee += 1
-                text += ' ' * (m - len(text))
-                self.__window.addstr(self.__y, 0, text)
+                self.__window.addstr(self.__y, 0, pad_to(text, length))
 
 
 class BarLine:
 
-    def __init__(self, window, y, max_x, volume, progress):
+    def __init__(self, window, y, length, volume, progress):
         self.__window = window
         self.__y = y
-        self.__max_x = max_x
+        self.__length = length
         self.__volume = volume
         self.progress = progress
         self.refresh(True)
 
     def refresh(self, full=True):
-        m = self.__max_x - 1
-        volume = min(int(self.__volume * m / 100.0), m)
-        text = '=' * volume + ' ' * (m - volume)
-        progress = min(int(self.progress * (m-1)), m-1)
-        text = text[:progress] + '|' + text[progress+1:]
+        length = self.__length
+        volume = min(int(self.__volume * length / 100.0), length)
+        progress = min(int(self.progress * (length-1)), length-1)
+        text = pad_to('=' * volume, length)
+        text = set_char_at(text, progress, '|')
         self.__window.addstr(self.__y, 0, text)
 
 
-PRESETS = 'abcd'
+PRESET_KEYS = 'abcd'
 
 class Screen:
 
@@ -197,10 +203,10 @@ class Screen:
         if y < 3:
             track = track + ' from ' + album
             album = None
-        self.__track = TextLine(self.__window, 0, x, track)
-        self.__album = TextLine(self.__window, 1, x, album)
-        self.__artist = TextLine(self.__window, 2, x, artist)
-        self.__volume = BarLine(self.__window, min(y-1, 3), x, 
+        self.__track = TextLine(self.__window, 0, x-1, track)
+        self.__album = TextLine(self.__window, 1, x-1, album)
+        self.__artist = TextLine(self.__window, 2, x-1, artist)
+        self.__volume = BarLine(self.__window, min(y-1, 3), x-1, 
                                 self.__amarok.volume, self.__amarok.progress)
         self.__window.refresh()
 
@@ -217,7 +223,7 @@ class Screen:
 
     def run(self):
         self.layout()
-        preset_volume = {preset: self.__amarok.volume for preset in PRESETS}
+        preset_volume = {preset: self.__amarok.volume for preset in PRESET_KEYS}
         preset_position = 1
         idle = 0
         while True:
@@ -255,11 +261,11 @@ class Screen:
                 preset_position = self.__amarok.position
             elif key == ord('P'):
                 preset_position = 1
-            elif key in (ord(preset.lower()) for preset in PRESETS):
+            elif key in (ord(preset.lower()) for preset in PRESET_KEYS):
                 self.__amarok.volume = preset_volume[chr(key)]
                 self.__amarok.position = preset_position
                 self.layout()
-            elif key in (ord(preset.upper()) for preset in PRESETS):
+            elif key in (ord(preset.upper()) for preset in PRESET_KEYS):
                 preset_volume[chr(key).lower()] = self.__amarok.volume
             elif key == -1:
                 sleep(0.01)
@@ -267,6 +273,7 @@ class Screen:
             if idle > 10:
                 self.refresh()
                 idle = 0
+
 
 class Amcl:
 
@@ -281,4 +288,3 @@ class Amcl:
 if __name__ == '__main__':
     with Amcl() as amcl:
         amcl.run()
-
