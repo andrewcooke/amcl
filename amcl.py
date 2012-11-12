@@ -145,6 +145,8 @@ class TextLine:
             scroll = len(text) > length
             if scroll or full:
                 if scroll:
+                    # scroll the text, incrementing the offset marquee
+                    # once per call, and resetting when aligned at start
                     t2 = text + '  ' + text
                     if self.__marquee == len(text) + 2: self.__marquee = 0
                     text = t2[self.__marquee:self.__marquee + length]
@@ -165,8 +167,8 @@ class BarLine:
     def refresh(self, full=True):
         length = self.__length
         volume = min(int(self.__volume * length / 100.0), length)
-        progress = min(int(self.progress * (length-1)), length-1)
         text = pad_to('=' * volume, length)
+        progress = min(int(self.progress * (length-1)), length-1)
         text = set_char_at(text, progress, '|')
         self.__window.addstr(self.__y, 0, text)
 
